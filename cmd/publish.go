@@ -23,7 +23,9 @@ func getIgnoredFiles() []string {
 	ignoreFilePath := getWorkdir() + "/.phpublisherignore"
 
 	files := []string{
-		ignoreFilePath,
+		".phpublisherignore",
+		".git",
+		".DS_Store",
 	}
 
 	ignoreFile, _ := os.Open(ignoreFilePath)
