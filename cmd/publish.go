@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -92,7 +94,7 @@ func createTemporaryFile(version string) (*os.File, func() error) {
 }
 
 func PublishCmd() *cli.Command {
-	var version, registry string
+	var version, registry, vendor, project, user, password string
 
 	return &cli.Command{
 		Name:  "publish",
@@ -107,15 +109,48 @@ func PublishCmd() *cli.Command {
 				panic(err)
 			}
 
-			fmt.Println("Zipped File:", zipFile.Name())
+			zipFile.Close()
 
-			// Tomorrow
+			zipFileName := zipFile.Name()
+
+			fmt.Println("Zipped File:", zipFileName)
+
+			fmt.Println("Uploading file...")
+
+			repositoryUrl := fmt.Sprintf("%s/%s/%s/%s", registry, vendor, project, version)
+
+			basicToken := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, password)))
+
+			client := &http.Client{}
+
+			file, _ := os.Open(zipFileName)
+			defer file.Close()
+
+			req, err := http.NewRequest(http.MethodPut, repositoryUrl, file)
+			if err != nil {
+				panic(err)
+			}
+			defer req.Body.Close()
+
+			req.Header.Set("Authorization", fmt.Sprintf("Basic %s", basicToken))
+
+			response, responseError := client.Do(req)
+			if responseError != nil {
+				fmt.Println("ERROR: ", responseError)
+			}
+			defer response.Body.Close()
+
+			fmt.Println("Package published! Request status: ", response.StatusCode)
 
 			return nil
 		},
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "registry", Aliases: []string{"r"}, Required: true, Destination: &registry},
-			&cli.StringFlag{Name: "version", Aliases: []string{"v"}, Required: true, Destination: &version},
+			&cli.StringFlag{Name: "registry", Required: true, Destination: &registry},
+			&cli.StringFlag{Name: "version", Required: true, Destination: &version},
+			&cli.StringFlag{Name: "vendor", Required: true, Destination: &vendor},
+			&cli.StringFlag{Name: "project", Required: true, Destination: &project},
+			&cli.StringFlag{Name: "user", Required: true, Destination: &user},
+			&cli.StringFlag{Name: "password", Required: true, Destination: &password},
 		},
 	}
 }
